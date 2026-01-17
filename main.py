@@ -51,6 +51,48 @@ class NotesService:
 
 service = NotesService(DATA_FILE)
 
+# --- UI Layer ---
+def main_menu_keyboard():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    btn1 = types.KeyboardButton("Создать заметку")
+    btn2 = types.KeyboardButton("Мои заметки")
+    markup.add(btn1, btn2)
+    return markup
+
+@bot.message_handler(commands=['start', 'help'])
+def send_welcome(message):
+    bot.reply_to(message,
+                 "Привет! Я бот для управления заметками.\n"
+                 "Выбери действие в меню ниже:",
+                 reply_markup=main_menu_keyboard())
+
+@bot.message_handler(func=lambda message: message.text == "Создать заметку")
+def create_note_step1(message):
+    msg = bot.send_message(message.chat.id, "Введите заголовок заметки:")
+    bot.register_next_step_handler(msg, process_create_title)
+
+def process_create_title(message):
+    title = message.text
+    msg = bot.send_message(message.chat.id, "Теперь введите текст заметки:")
+    bot.register_next_step_handler(msg, process_create_content, title)
+
+def process_create_content(message, title):
+    if service.add_note(message.chat.id, title, message.text):
+        bot.send_message(message.chat.id, "Заметка сохранена!", reply_markup=main_menu_keyboard())
+    else:
+        bot.send_message(message.chat.id, "Ошибка сохранения.")
+
+@bot.message_handler(func=lambda message: message.text == "Мои заметки")
+def list_notes(message):
+    notes = service.get_notes(message.chat.id)
+    if not notes:
+        bot.send_message(message.chat.id, "У вас пока нет заметок.")
+    else:
+        response = "Ваши заметки:\n\n"
+        for note in notes:
+            response += f"ID *{note['id']}* | *{note['title']}*\n{note['content']}\n{'-'*20}\n"
+        bot.send_message(message.chat.id, response, parse_mode='Markdown')
+
 if __name__ == '__main__':
     print("Бот запущен...")
     bot.polling(none_stop=True)
